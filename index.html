@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Sequencer</title>
+<script src="//webrtc.github.io/adapter/adapter-latest.js"></script>
+<script src="recorder.js"></script>
+<script>
+
+/* handige link: 
+http://webaudioplayground.appspot.com/
+*/
+
+var audioContext;
+var geluiden = [];
+var sequencer = [];
+var milliSecondsPerNote = 250;
+
+function Geluid(naam, buffer) {
+	this.naam = naam;
+	this.buffer = buffer;
+}
+
+// Deel 1: een geluid afspelen
+
+Geluid.prototype.speelAf = function speelAf(tijd) {
+	// tijd is het moment vanaf nu waar we het geluid willen afspelen
+	if (!tijd) { tijd = 0.0; }
+	// maak een buffersource
+	var src = audioContext.createBufferSource();
+	
+	// verbind de buffersource met de bestemming
+	
+	// stel de .buffer van de buffersource in 
+	
+	// start afspelen, let op dat je de currentTime moet gebruiken als offset
+	
+}
+
+// Deel 2: meerdere geluiden afspelen in een compositie
+
+function speelGeluiden() {
+	// het array met de naam geluiden heeft een aantal Geluid objecten
+	// maak in deze functie een compositie van deze geluiden door ze op 
+	// verschillende momenten af te spelen
+	
+}
+
+// Deel 3: de sequencer afmaken
+
+function speelSequence(t) {
+	// t is het moment in seconden vanaf nu waarop de sequence moet afspelen
+	t = t || 0; 
+	var trackSampleSelects = document.getElementById('sequencer').getElementsByTagName('select');
+	for (var i = 0; i < sequencer.length; ++i) {
+		var track = sequencer[i];
+		// bepaal welk geluid in de dropdown is geselecteerd
+		track.geluid = geluiden[trackSampleSelects[i].selectedIndex];
+		
+		// maak een for-loop langs alle notes in de track
+		
+			// check per note of hij 'aan' staat (true)
+		
+			// zo ja speel hem af op het juiste tijdstip, in seconden
+		
+	}
+}
+
+/*
+  Geavanceerd: 
+  Stuur bij afspelen de geluiden naar een ConvolverNode om een 
+  geluids effect toe te voegen.
+  Gebruik hiervoor 
+  - audioContext.createConvolver om een ConvolverNode te maken
+  - zet een .buffer op de ConvolverNode 
+  - connect de ConvolverNode met de normale destination
+  - in speelAf verbind de BufferSourceNode niet met de normale destination
+    maar met de ConvolverNode
+  */
+
+
+
+
+
+// Hieronder staan zaken die nodig zijn voor de workshop
+var actiefGeluid;
+var geluidTeller = 0;
+var geluidenLijst;
+var recorder;
+
+function setupAudioContext() {
+	audioContext = new AudioContext();
+	verbindMicrofoon();
+	laadGeluid('geluiden/boing.wav', nieuwGeluid);
+	laadGeluid('geluiden/8-bit-explosion.wav', nieuwGeluid);
+	laadGeluid('geluiden/jump.wav', nieuwGeluid);
+	laadGeluid('geluiden/snare.wav', nieuwGeluid);
+}
+
+
+function laadGeluid(url, callback) {
+	var naam = url.match(/\/(.+)\./);
+	naam = naam[1];
+	var request = new XMLHttpRequest();
+	request.open('GET', url, true);
+	request.responseType = 'arraybuffer';
+	request.onload = function() {
+		audioContext.decodeAudioData(request.response, function(buffer) {
+			callback(buffer, naam); 
+		}, function(err) {
+			console.error('Fout bij laden geluid', url, err);
+		});
+	}
+	request.send();
+}
+
+function verbindMicrofoon() {
+    var audioOptions = {
+         mandatory: {
+           googEchoCancellation: false,
+           googAutoGainControl: false,
+           googNoiseSuppression: true,
+           googHighpassFilter: false
+         },
+         optional: []
+     };
+ 	navigator.mediaDevices.getUserMedia({audio: audioOptions }).then(function(stream) {
+		var input = audioContext.createMediaStreamSource(stream);
+	    //input.connect(audio_context.destination);
+    	recorder = new Recorder(input);	
+    }).catch(function(e) {
+    	console.error(e);
+		alert('No live audio input: ' + e);
+	});
+}
+
+function kiesInLijst() {
+	var idx = geluidenLijst.selectedIndex;
+	actiefGeluid = geluiden[idx];
+	var naam = '';
+	if (!actiefGeluid) {
+		// geen geluiden meer
+		naam = '-';
+	} else {
+		naam = actiefGeluid.naam;
+	}
+	document.getElementById('actiefGeluid').getElementsByClassName('naam')[0].value = naam;
+}
+
+function speelGeluid(idx) {
+	if (geluiden[idx]) {
+		geluiden[idx].speelAf();
+	}
+}
+
+function speelActiefGeluid() {
+    if (actiefGeluid) {
+        actiefGeluid.speelAf();
+    }
+}
+
+function nieuwGeluid(buffer, naam) {
+	if (!naam) {
+		naam = 'Geluid ' + (++geluidTeller);
+	}
+	var geluid = new Geluid(naam, buffer);
+	geluiden.push(geluid);
+	// geluid.speelAf();
+	var geluidLijstItem = document.createElement('option');
+	geluidLijstItem.innerHTML = geluid.naam;
+	geluidenLijst.add(geluidLijstItem);
+	geluidenLijst.selectedIndex = geluidenLijst.options.length - 1;
+	kiesInLijst();
+}
+
+
+function verwijderGeluid() {
+	var idx = document.getElementById('geluidenLijst').selectedIndex;
+	if (idx < 0) {
+		alert('Kies eerst een geluid in de lijst');
+		return;
+	} 
+	if (confirm('Weet je het zeker?')) {
+		geluiden.splice(idx, 1);
+		geluidenLijst.remove(idx);
+		geluidenLijst.selectedIndex = 0;
+		kiesInLijst();
+	}
+}
+
+function wijzigGeluidNaam(naam) {
+	if (actiefGeluid) {
+		actiefGeluid.naam = naam;
+	}
+	var opt = geluidenLijst.selectedOptions[0];
+	if (opt) {
+		opt.innerHTML = naam;
+	}
+}
+
+function opnemenStart() {
+    if (!recorder) {
+        alert('Geen microfoon input beschikbaar');
+        return;
+    }
+    recorder.record();
+}
+
+function opnemenStop() {
+    if (!recorder) {
+        alert('Geen microfoon input beschikbaar');
+        return;
+    }
+    recorder.stop();
+    recorder.getBuffer(function(buffers) {
+        var newBuffer = audioContext.createBuffer( 2, buffers[0].length, audioContext.sampleRate );
+        newBuffer.getChannelData(0).set(buffers[0]);
+        newBuffer.getChannelData(1).set(buffers[1]);
+        nieuwGeluid(newBuffer);
+        recorder.clear();
+    });
+}
+
+function toggleOpnemen() {
+    if (!recorder) {
+        alert('Geen microfoon input beschikbaar');
+        return;
+    }
+	if (recorder.recording) {
+		opnemenStop();
+	} else {
+		opnemenStart();
+	}
+}
+
+function gebruikGeluiden() {
+	var trackSampleSelects = document.getElementById('sequencer').getElementsByTagName('select');
+	for (var t = 0; t < trackSampleSelects.length; ++t) {
+		var sampleSelect = trackSampleSelects[t];
+		var curIdx = sampleSelect.selectedIndex;
+		while (sampleSelect.firstChild) {
+			sampleSelect.firstChild.remove();
+		}
+		for (var i = 0; i < geluiden.length; ++i) {
+			var geluid = geluiden[i];
+			var opt = document.createElement('option');
+			opt.value = i; // we gebruiken deze niet
+			opt.innerHTML = geluid.naam;
+			sampleSelect.appendChild(opt);
+		}
+		if (curIdx >= 0) {
+			sampleSelect.selectedIndex = curIdx;
+		} else {
+			sampleSelect.selectedIndex = t;
+		}
+	}
+}
+
+
+var sequenceLoopTimer = false;
+function togglePlaySequencer() {
+	if (sequenceLoopTimer) {
+		clearTimeout(sequenceLoopTimer);
+		sequenceLoopTimer = false;
+	} else {
+		nextSequenceStart = audioContext.currentTime;
+		scheduleNextSequenceLoop();
+	}
+}
+
+var nextSequenceStart = 0;
+function scheduleNextSequenceLoop() {
+	var timeOffset = Math.max(0, (nextSequenceStart - audioContext.currentTime) * 1000 - 100);
+	sequenceLoopTimer = setTimeout(function() {
+		document.getElementById('progressBar').className = 'moveLeft';
+		speelSequence(nextSequenceStart - audioContext.currentTime);
+		nextSequenceStart = nextSequenceStart + milliSecondsPerNote / 1000 * sequencer[0].notes.length;
+		scheduleNextSequenceLoop();
+		setTimeout(function() {
+			document.getElementById('progressBar').className = 'moveRight';
+		}, 10);
+	}, timeOffset);
+}
+
+function toggleNote(evt) {
+	var trackIdx = parseInt(this.getAttribute('data-track'));
+	var noteIdx = parseInt(evt.target.getAttribute('data-note'));
+	if (trackIdx >= 0 && noteIdx >= 0) {
+		sequencer[trackIdx].notes[noteIdx] = !sequencer[trackIdx].notes[noteIdx];
+		evt.target.classList.toggle('on', sequencer[trackIdx].notes[noteIdx]);
+	}
+}
+
+function keyHandler(evt) {
+	if (evt.path[0] != document.body) {
+		return;
+	}
+	console.log(evt.keyCode, evt.path);
+	if (evt.keyCode == 114 || evt.keyCode == 82) {
+		// R
+		toggleOpnemen();
+	}
+	if (evt.keyCode >= 49 && evt.keyCode <= 57) {
+		// 1 -- 9
+		speelGeluid(evt.keyCode - 49);
+	}
+}
+
+window.onload = function init() {
+    geluidenLijst = document.getElementById('geluidenLijst');
+	window.AudioContext = window.AudioContext || window.webkitAudioContext;
+	window.URL = window.URL || window.webkitURL;
+
+    setupAudioContext();
+	
+	document.body.addEventListener('keypress', keyHandler, false);
+	
+	// maak de sequencer bars
+	var sequencerDiv = document.getElementById('sequencer');
+	
+	for (var i = 0; i < 8; ++i) {
+		var trackDiv = document.createElement('div');
+		trackDiv.className = 'track';
+		trackDiv.setAttribute('data-track', i);
+		var trackSampleSelect = document.createElement('select');
+		trackDiv.appendChild(trackSampleSelect);
+		trackSampleSelect.addEventListener('change', function(){console.log(this)});
+		
+		var trackNotesSpan = document.createElement('span');
+		trackNotesSpan.className = 'notes';
+		trackNotesSpan.setAttribute('data-track', i);
+		for (var j = 0; j < 2*8; ++j) {
+			// 2 bars 8 noten per bar
+			var noteSpan = document.createElement('span');
+			noteSpan.setAttribute('data-note', j);
+			noteSpan.className = 'note';
+			trackNotesSpan.appendChild(noteSpan);
+		}
+		trackNotesSpan.addEventListener('click', toggleNote);
+		trackDiv.appendChild(trackNotesSpan);
+		sequencerDiv.appendChild(trackDiv);
+		sequencer[i] = { geluid: undefined, notes: Array(2*8) };
+		sequencer[i].notes.fill(false, 0, 2*8);
+	}
+	
+};
+
+window.xonbeforeunload = function() {
+	if (geluiden.length) {
+		return 'Geluiden opgeslagen?';
+	}
+	return;
+}
+</script>
+<style type="text/css">
+body,input,select,button {
+	font-family: Helvetica,Verdana,sans-serif;
+}
+.track {
+	position:relative;
+}
+.track select {
+	width: 100px;
+}
+.notes {
+	display:block;
+	position: absolute;
+	top:0;
+	bottom:0;
+	left:110px;
+	right:0;
+}
+.note {
+	display: inline-block;
+	width: 6.25%; /* 100 / 16 */
+	height:80%;
+	border:1px solid black;
+	border-right-width:0;
+	box-sizing: border-box;
+}
+.note:last-child {
+	border-right-width:1px;
+}
+.note.on {
+	background-color:rgba(100,100,100,.5);
+}
+#sequencer {
+	position:relative;
+}
+#progressBar {
+	position:absolute;
+	left:110px;
+	right:0;
+	height:100%;
+	z-index:1;
+	pointer-events: none;
+}
+#progressBar.moveLeft {
+}
+#progressBar.moveRight {
+	transform: translateX(100%);
+	transition: transform 4s linear;
+}
+#progressBar span {
+	position: absolute;
+	left:0;
+	height:100%;
+	border-left:1px solid red;
+	border-right:1px solid red;
+}
+#geluidenLijst {
+	width: 100px;
+}
+</style>
+</head>
+<body>
+<h1>Audio Recorder</h1>
+<button onclick="opnemenStart()">Start opname</button>
+<button onclick="opnemenStop()">Stop opname</button>
+<div id="actiefGeluid">
+	<input class="naam" type="text" size="20" onchange="wijzigGeluidNaam(this.value)" />
+	<button onclick="speelActiefGeluid()">Speel af</button>
+</div>
+<select id="geluidenLijst" size="8" onchange="kiesInLijst()">
+</select>
+<button onclick="verwijderGeluid()">Verwijder geluid</button>
+<button onclick="speelGeluiden()">speelGeluiden()</button>
+<button onclick="gebruikGeluiden()">Gebruik geluiden in sequencer</button>
+<hr />
+<h1>Audio Sequencer</h1>
+<div id="sequencer">
+	<div id="progressBar"><span></span></div>
+</div>
+<button id="togglePlaySequencerButton" onclick="togglePlaySequencer()">Speel sequencer</button>
+</body>
+</html>
+
